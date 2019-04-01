@@ -1,0 +1,593 @@
+#!/bin/bash
+
+#Nicolas Sim CS 344 - Fall 2018
+#This program is a bash shell script to compute matrix operations
+#Processes of the script include finding the dimensions, transpose, mean, addition amd multiplication or matrices.
+
+
+######## ******** PLEASE READ
+#TO GRADER - THE LAST 2 tests take awhile to finish processing.
+#Tests: 0*M ==0? and A*B==C?
+#Errors from self grade testing - Hung process (killed)
+#
+#Please consider giving extra time for computing or testing manually. Thank you.
+
+
+
+
+stdinfile="stdinmatrix" #stdin file needed just in case no file is given as argument (from stdin)
+
+
+#The function gets the dimensions of a valid matrix file
+dims(){
+
+	temprow="temprows"
+	tempcol="tempcols"
+
+	numrows=0
+	numcols=0
+
+
+	if [[ -r $1 && -w $1 ]] #if file is valid (reading and writing capabilities)
+	then
+
+		cut -c 1 $1 > $temprow #takes the first column and puts it into a separate file
+
+		while read temprows #read the file and for every newline we add 1
+		do
+			numrows=`expr $numrows + 1`
+		done < $temprow
+
+		head -n 1 $1 > $tempcol #takes the first row and puts it into a separate file
+		
+		while read tempcols #should only be 1 line
+		do
+		  for i in $tempcols #count elements in the line
+		  do
+		    numcols=`expr $numcols + 1`
+		  done 
+
+		done < $tempcol
+
+		echo "$numrows $numcols"
+
+
+	else
+		echo "unreadable file" >&2
+		exit 1
+	fi
+
+	rm -f temprows
+	rm -f tempcols
+
+
+}
+
+#https://www.cyberciti.biz/faq/bash-for-loop/
+#https://stackoverflow.com/questions/1729824/an-efficient-way-to-transpose-a-file-in-bash
+#https://unix.stackexchange.com/questions/88808/empty-the-contents-of-a-file
+#https://askubuntu.com/questions/558977/checking-for-a-file-and-whether-it-is-readable-and-writable
+#https://superuser.com/questions/395668/how-do-i-echo-something-file-txt-without-carriage-return
+#https://stackoverflow.com/questions/14231232/why-a-variable-assignment-replaces-tabs-with-spaces
+transpose(){
+
+	tempcol="tempcols"
+	tempfile="tempf"
+	numcols=0
+
+	if [[ -r $1 && -w $1 ]] #checks if file is readable and writable (valid)
+	then
+	
+		head -n 1 $1 > $tempcol #receive the first column to obtain the number of columns in var numcols
+		while read tempcols
+		do
+		  for i in $tempcols
+		  do
+		    numcols=`expr $numcols + 1`
+		  done 
+
+		done < $tempcol
+
+		#cp /dev/null tempfile
+
+		for (( i=1; i<="$numcols"; i++))
+		do
+			cut -f $i $1 | tr $'\n' $'\t' > tempfile #from stackoverflow a way to transform newlines to tabs
+			myLine=$(head -n 1 tempfile) #reads from tempfile to put into variable myLine
+			myLine=${myLine%?} #gets rid of the last tab
+
+			echo "$myLine"
+			
+		done
+
+	else
+		echo "unreadable file" >&2
+		exit 1
+	fi
+		
+
+	rm -f tempcols
+	rm -f tempfile
+}
+
+
+#A function to calculate the average(mean) of a valid matrix
+mean(){
+
+	temprow="temprows"
+	tempcol="tempcols"
+	tempfile="tempf"
+
+	numrows=0
+	numcols=0
+
+	if [[ -r $1 && -w $1 ]] #checks of the matrix file is readable and writable
+	then
+
+		#process to find the number of rows using cut and counting each element in a while loop
+		cut -c 1 $1 > $temprow
+		while read temprows
+		do
+			numrows=`expr $numrows + 1`
+		done < $temprow
+
+		#process to find number of cols
+		head -n 1 $1 > $tempcol
+		while read tempcols
+		do
+		  for i in $tempcols
+		  do
+		    numcols=`expr $numcols + 1`
+		  done 
+
+		done < $tempcol
+
+		#find dimensions of matrix above
+
+		cp /dev/null tempfile
+
+		for (( i=1; i<="$numcols"; i++))
+		do
+			sum=0
+			cut -f $i $1  > tempfile #gets column to find mean from
+			myLine=$(head -n 1 tempfile)
+			#myLine=${myLine%?}
+			#echo "$myLine"
+
+			while read num #loop to get the sum
+			do
+				sum=`expr $sum + $num` #add up the numbers from column
+
+			done < tempfile
+
+			#we compute the sum through the forloop from 1 -> number of columns and last echo is done when i==num of cols
+			if [[ $i -ne $numcols ]]
+			then
+				#sum=$((sum/$numrows)) #divided by number of rows
+				sum=$(( (sum + ($numrows/2)*( (sum>0)*2-1 )) / $numrows )) #using equation from hw description to get average
+				echo -n "$sum"
+				echo -n -e "\t"
+				
+				sum=0
+			#elif clause to indicate end of average computation when the i loop equals the num of cols
+			elif [[ $i == $numcols ]]
+			then
+				sum=$(( (sum + ($numrows/2)*( (sum>0)*2-1 )) / $numrows ))
+				echo "$sum"
+			fi
+
+		done
+
+	else
+		echo "unreadable file" >&2
+		exit 1
+	fi
+
+	rm -f temprows
+	rm -f tempcols
+	#rm -f tempf
+	rm -f tempfile
+}
+
+#https://stackoverflow.com/questions/1429556/shell-bash-command-to-get-nth-line-of-stdout
+#https://stackoverflow.com/questions/7427262/how-to-read-a-file-into-a-variable-in-shell
+add(){
+#add function that takes 2 extra file arguments.
+	temprow="temprows"
+	tempcol="tempcols"
+	tempm1="tempm1row"
+	tempm2="tempm2row"
+	tempfile1="tempfiles1"
+	tempfile2="tempfiles2"
+	sumfile="sumfile1"
+
+	#temprow2="temprows2"
+	#tempcol2="tempcols2"
+
+	rows1=0
+	cols1=0
+
+	rows2=0
+	cols2=0
+
+	if [[ -r $1 && -w $1 ]] && [[ -r $2 && -w $2 ]] #if both files are valid proceed
+	then
+		#first find file number of row1 and col1
+		cut -c 1 $1 > $temprow
+
+		while read temprows
+		do
+			rows1=`expr $rows1 + 1`
+		done < $temprow
+
+		head -n 1 $1 > $tempcol
+		while read tempcols
+		do
+		  for i in $tempcols
+		  do
+		    cols1=`expr $cols1 + 1`
+		  done 
+
+		done < $tempcol
+
+		#second find file number of row2 and col2 
+		cut -c 1 $2 > $temprow
+
+		while read temprows
+		do
+			rows2=`expr $rows2 + 1`
+		done < $temprow
+
+		head -n 1 $2 > $tempcol
+		while read tempcols
+		do
+		  for i in $tempcols
+		  do
+		    cols2=`expr $cols2 + 1`
+		  done 
+
+		done < $tempcol
+
+		#test if correct
+		#echo "$rows1 $cols1"
+		#echo "$rows2 $cols2"
+
+		#if/elif statements check validity of the matrix files		
+		if [[ $rows1 == 0 ]] && [[ $cols1 == 0 ]] && [[ $rows2 == 0 ]] && [[ $cols2 == 0 ]]
+		then
+			while read myLine
+			do
+				echo "$myLine"
+			done < $1
+
+		elif [[ $rows2 == 0 ]] && [[ $cols2 == 0 ]]
+		then
+			while read myLine
+			do
+				echo "$myLine"
+			done < $1
+
+
+		elif [[ $rows1 == 0 ]] && [[ $cols1 == 0 ]]
+		then
+			while read myLine
+			do
+				echo "$myLine"
+			done < $2
+
+		#take each file and get a line from each
+		#get the first instance of each and put the result in a separate file
+		elif [[ $rows1 == $rows2 ]] && [[ $cols1 == $cols2 ]]
+		then
+			
+			#the process below has two forloops rows x columns.
+			#It gets the first row and first column
+			#and uses the cut function to get 1 number.
+			#this number is read again and set as a value (for each matrix)
+			#these numbers are then added and echoed to a file which is then 
+			#echoed again for the final result
+			for (( i=1; i<="$rows1"; i++))
+			do
+				#echo "testhello"
+				head -$i $1 | tail -1 > $tempm1
+				head -$i $2 | tail -1 > $tempm2
+
+				#now for loop each tempm1 and tempm2 and add
+				for (( n=1; n<="$cols1"; n++))
+				do
+					cut -f $n $tempm1 > $tempfile1
+					cut -f $n $tempm2 > $tempfile2
+					#zero out the two values that need to be added as well as the sum
+					value1=0
+					value2=0
+					sum=0
+
+					#put the values of a certain row and certain column into variables and get sum
+					while read line; do
+						value1="$line"
+					done < $tempfile1
+
+					while read line; do
+						value2="$line"
+					done < $tempfile2
+
+					sum=$(( $value1 + $value2))
+					echo -e -n "$sum\t" >> $sumfile #sum is put into a file
+
+				done
+				echo "" >> $sumfile #necessary for format spacing every new line
+			done
+
+			#print final matrix with sums
+			while read line; do
+				echo "$line"
+			done < $sumfile
+
+		else
+			echo "incorrect matrix sizes" >&2
+			exit 1
+		fi
+
+	else
+		echo "unreadable file" >&2
+		exit 1
+
+	fi
+
+	rm -f temprows
+	rm -f tempcols
+	rm -f sumfile1
+	rm -f tempfiles1
+	rm -f tempfiles2
+	#rm -f tempm1row
+	#rm -f tempm2row
+
+}
+
+multiply(){
+#this function gets the multiplication matrix of two valid matrices.
+
+  temprow="temprows"
+  tempcol="tempcols"
+
+  tempm1="tempm1row"
+  tempm2="tempm2row"
+
+  tempm11="tempm1num"
+  tempm22="tempm2num"
+
+  tempsum="tempsums"
+  finalm="finalmatrix"
+
+
+  rows1=0
+  cols1=0
+
+  rows2=0
+  cols2=0
+
+  if [[ -r $1 && -w $1 ]] && [[ -r $1 && -w $1 ]] 
+  then
+    #first file row1 and col1 find
+    cut -c 1 $1 > $temprow
+    while read temprows
+    do
+      rows1=`expr $rows1 + 1`
+    done < $temprow
+
+    head -n 1 $1 > $tempcol
+    while read tempcols
+    do
+      for i in $tempcols
+      do
+        cols1=`expr $cols1 + 1`
+      done 
+    done < $tempcol
+
+    #second file row2 and col2 find
+    cut -c 1 $2 > $temprow
+
+    while read temprows
+    do
+      rows2=`expr $rows2 + 1`
+    done < $temprow
+
+    head -n 1 $2 > $tempcol
+    while read tempcols
+    do
+      for i in $tempcols
+      do
+        cols2=`expr $cols2 + 1`
+      done 
+
+    done < $tempcol
+    # /////// TEST ///////
+    #echo "$rows1 $cols1"
+    #echo "$rows2 $cols2"
+
+    #After confirming rows and cols are ok to multiply, apply multiplication 
+    if [[ cols1 -ne rows2 ]]
+    then
+      echo "incorrect dimensions" >&2
+      exit 1
+
+    else
+      for (( i=1; i<="$rows1"; i++ )) #rows of m1 and cols of m2 must match in order for multiplication to happen
+      do
+      	head -$i $1 | tail -1 > $tempm1 #get the first row of matrix1 looped to the last row of matrix1
+      	for (( n=1; n<="$cols2"; n++ ))
+      	do
+      		cut -f $n $2 | tr $'\n' $'\t' > $tempm2 #using this transformation used in transpose- get the first column of matrix 2 looped to the last col of matrix2
+      		for (( x=1; x<="$cols1"; x++ )) #looping through the number of elements in each row/col used (or number of columns in matrix 1)
+      		do
+      			cut -f $x $tempm1 >> $tempm11 
+      			#we loop through the respective elements starting with first element of first row of matrix1 and first element of first col of matrix2
+      			cut -f $x $tempm2 >> $tempm22 
+      			value1=0
+      			value2=0
+      			sum=0
+      			#zero out the values and sum variables and get sums from respective temporary files
+      			while read line; do
+					value1="$line"
+				done < $tempm11
+
+				while read line; do
+					value2="$line"
+				done < $tempm22
+				#compute a row of sums and put into a temporary file
+				sum=$(( $value1 * $value2))
+				echo "$sum" >> $tempsum
+      		done
+      		#add up numbers in tempsum then delete file for rereading
+      		finalsum=0
+      		#this computes the sum of all products of one row and one col (loops to next in the double forloop)
+      		while read line; do
+      			finalsum=`expr $finalsum + $line`
+      		done < $tempsum
+      		echo -e -n "$finalsum\t" >> $finalm
+      		rm -f tempsums
+
+      	done
+      	echo "" >> $finalm #newline for formatting purposes
+
+      done
+      #echoes the final matrix
+      while read line; do
+		echo "$line"
+	  done < $finalm
+
+    fi
+
+  else
+    echo "unreadable file" >&2
+    exit 1
+  fi
+
+  rm -f temprows
+  rm -f tempcols
+  rm -f tempm1num
+  rm -f tempm1row
+  rm -f tempm2num
+  rm -f tempm2row
+
+}
+
+
+#All individually coded for first argument being whichever function
+#optimized for add and multiply to must have 3 arguments due to addition/multiplication 
+#of two other matrix files after command.
+
+#if dims is selected - valid amount of arguments must be used
+if [[ $1 == "dims" ]]
+then
+  if [[ $# == 1 ]]
+  	then
+  		cat > "$stdinfile"
+  		$1 "$stdinfile"
+
+  elif [[ $# == 2 ]]
+  	then
+  		$1 "${@:2}"
+  	
+  elif [[ $# -ge 3 ]]
+  	then
+  		echo "No more than 2 arguments allowed." >&2
+  		exit 1
+  fi
+fi
+
+#if transpose is selected - valid amount of arguments must be used
+if [[ $1 == "transpose" ]]
+then
+  if [[ $# == 1 ]]
+  	then
+  		cat > "$stdinfile"
+  		$1 "$stdinfile ${@:2}"
+  elif [[ $# == 2 ]]
+  	then
+  		$1 "${@:2}"
+  	
+  elif [[ $# -ge 3 ]]
+  	then
+  		echo "No more than 2 arguments allowed." >&2
+  		exit 1
+  fi
+fi
+
+#if mean is selected - valid amount of arguments must be used
+if [[ $1 == "mean" ]]
+then
+  if [[ $# == 1 ]]
+  	then
+  		cat > "$stdinfile"
+  		$1 "$stdinfile"
+  elif [[ $# == 2 ]]
+  	then
+  		$1 "${@:2}"
+  	
+  elif [[ $# -ge 3 ]]
+  	then
+  		echo "No more than 2 arguments allowed." >&2
+  		exit 1
+  fi
+fi
+
+#if add is selected - valid amount of arguments must be used (add and multiply are different)
+if [[ $1 == "add" ]]
+then
+
+  if [[ $# == 3 ]]
+  	then
+  		$1 "${@:2}"
+
+  elif [[ $# -le 2 ]]
+  	then
+  		echo "Not enough arguments" >&2
+  		exit 1
+  	
+  elif [[ $# -ge 4 ]]
+  	then
+  		echo "No more than 2 arguments allowed." >&2
+  		exit 1
+  fi
+
+fi
+
+#if multiply is selected - valid amount of arguments must be used
+if [[ $1 == "multiply" ]]
+then
+
+  if [[ $# == 3 ]]
+  	then
+  		$1 "${@:2}"
+
+  elif [[ $# -le 2 ]]
+  	then
+  		echo "Not enough arguments" >&2
+  		exit 1
+  	
+  elif [[ $# -ge 4 ]]
+  	then
+  		echo "No more than 2 arguments allowed." >&2
+  		exit 1
+  fi
+
+fi
+
+#if all other commands are not these, badcommand error is thrown and exited.
+if [[ $1 -ne "dims" ]] && [[ $1 -ne "transpose" ]] && [[ $1 -ne "mean" ]] && [[ $1 -ne "add" ]] && [[ $1 -ne "multiply" ]]
+then
+	echo "badcommand" >&2
+	exit 1
+fi
+
+#these remove files are here because of the multiplication function grade script hang error not computing all the way through and not deleting files correctly
+rm -f stdinmatrix
+rm -f finalmatrix
+rm -f temprows
+rm -f tempcols
+rm -f tempm1num
+rm -f tempm1row
+rm -f tempm2num
+rm -f tempm2row
+rm -f tempsums
